@@ -1,0 +1,35 @@
+---
+# defaults file for dokuwikicmdb
+# This is the default configuration for the DokuWiki CMDB plugin.
+# This file contains default variables for the Ansible role.
+# You can override these variables in your playbook or inventory files.
+
+# DokuWiki CMDB specific variables
+
+# Zabbix Agent specific variables
+zabbix_agent_package_name: "zabbix-agent2"
+zabbix_agent_service_name: "zabbix-agent2.service"  # Ensure this matches your OS, e.g., zabbix-agent2 for systemd
+zabbix_agent_conf_file: "/etc/zabbix/zabbix_agent2.conf"
+
+# Wazuh Agent specific variables
+wazuh_agent_package_name: "wazuh-agent"
+wazuh_agent_service_name: "wazuh-agent"  # Ensure this matches your OS, e.g., wazuh-agent for systemd
+wazuh_agent_conf_file: "/var/ossec/etc/ossec.conf"
+
+# Configuration files for rsyslog checks
+graylog_rsyslog_conf_file: "/etc/rsyslog.d/99-graylog.conf"
+journald_conf_file: "/etc/systemd/journald.conf"
+rsyslog_imjournal_conf_file: "/etc/rsyslog.d/00-journalctl.conf"
+
+# Variables for local documentation files on managed hosts (used by dokuwiki action)
+dokuwiki_local_destination: "/opt/ansible_server_docs"
+dokuwiki_local_destination_user: "root"
+dokuwiki_local_destination_group: "root"
+
+# Variables for DokuWiki target server (used by dokuwiki action)
+# IMPORTANT: You MUST override 'dokuwiki_targetserver' with your actual DokuWiki server hostname or IP.
+dokuwiki_targetserver: "your_dokuwiki_server_hostname_or_ip"
+dokuwiki_directory: "/srv/dokuwiki/data/pages/servers"  # Path to server pages on DokuWiki server
+dokuwiki_user: "www-data"  # User that owns DokuWiki files (e.g., apache, nginx, www-data)
+dokuwiki_group: "www-data"  # Group for DokuWiki files
+dokuwiki_serverlist_destination: "/srv/dokuwiki/data/pages/serverlist.txt"  # Path for the server list page

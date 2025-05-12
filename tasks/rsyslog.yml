@@ -1,0 +1,140 @@
+---
+# tasks file for Rsyslog checks (Graylog forwarding, journald integration)
+
+# Check if the Graylog rsyslog configuration file exists
+- name: Rsyslog Check | Check for Graylog rsyslog configuration file
+  ansible.builtin.stat:
+    path: "{{ graylog_rsyslog_conf_file }}"
+  register: graylog_conf_stat
+
+# Read the content of the Graylog rsyslog configuration file if it exists
+- name: Rsyslog Check | Read Graylog rsyslog configuration file content
+  ansible.builtin.slurp:
+    src: "{{ graylog_rsyslog_conf_file }}"
+  register: graylog_conf_content
+  when: graylog_conf_stat.stat.exists and graylog_conf_stat.stat.isreg
+
+# Initialize facts for Graylog configuration status and target IP
+- name: Rsyslog Check | Initialize Graylog configuration facts
+  ansible.builtin.set_fact:
+    graylog_configured_via_file: false
+    graylog_target_ip_from_conf: "N/A"
+
+# Extract the Graylog target IP from the configuration file if present
+- name: Rsyslog Check | Extract Graylog target IP if configured
+  ansible.builtin.set_fact:
+    graylog_configured_via_file: true
+    graylog_target_ip_from_conf: >-
+      {%- set decoded_content = graylog_conf_content.content | b64decode -%}
+      {%- set extracted_ips = decoded_content | regex_search(
+        '@@\\s*([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\\s*:[0-9]+', '\\1'
+      ) -%}
+      {%- if extracted_ips -%}
+        {{- extracted_ips[0] -}}
+      {%- else -%}
+        IP format error in file
+      {%- endif -%}
+  when:
+    - graylog_conf_stat.stat.exists and graylog_conf_stat.stat.isreg
+    - graylog_conf_content.content is defined and (graylog_conf_content.content | b64decode | length > 0)
+
+# Initialize facts for journald configuration status
+- name: Rsyslog Check | Initialize journald configuration facts
+  ansible.builtin.set_fact:
+    journald_conf_exists: false
+    journald_forward_to_syslog_status: "Not checked"
+
+# Check if the journald.conf file exists
+- name: Rsyslog Check | Check for journald.conf file
+  ansible.builtin.stat:
+    path: "{{ journald_conf_file }}"
+  register: journald_conf_stat_result
+
+# Update fact if journald.conf exists and is a regular file
+- name: Rsyslog Check | Update journald.conf existence fact
+  ansible.builtin.set_fact:
+    journald_conf_exists: true
+  when:
+    - journald_conf_stat_result.stat is defined
+    - journald_conf_stat_result.stat.exists
+    - journald_conf_stat_result.stat.isreg
+
+# Read the content of journald.conf if it exists
+- name: Rsyslog Check | Read journald.conf content
+  ansible.builtin.slurp:
+    src: "{{ journald_conf_file }}"
+  register: journald_conf_content_result
+  when: journald_conf_exists
+
+# Check the value of ForwardToSyslog in journald.conf
+- name: Rsyslog Check | Check ForwardToSyslog in journald.conf
+  ansible.builtin.set_fact:
+    journald_forward_to_syslog_status: >-
+      {%- set _status = "Setting not found" -%}
+      {%- set _found_setting = false -%}
+      {%- if journald_conf_content_result.content is defined -%}
+        {%- set decoded_content = journald_conf_content_result.content | b64decode -%}
+        {%- for line in decoded_content.split('\n') | reverse -%}
+          {%- if not _found_setting -%}
+            {%- set match = line | regex_search(
+              '^\\s*ForwardToSyslog\\s*=\\s*([^#\\n]+)', multiline=True
+            ) -%}
+            {%- if match and match[0] and (match[0] | trim | lower == 'yes') -%}
+              {%- set _status = "Yes" -%}
+              {%- set _found_setting = true -%}
+            {%- endif -%}
+            {%- if not _found_setting and match and match[0] and (match[0] | trim | lower != 'yes') -%}
+              {%- set _status = "No (value: " ~ (match[0] | trim) ~ ")" -%}
+              {%- set _found_setting = true -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {{ _status }}
+  when: journald_conf_exists
+
+# Initialize fact for rsyslog imjournal configuration status
+- name: Rsyslog Check | Initialize rsyslog imjournal configuration facts
+  ansible.builtin.set_fact:
+    rsyslog_imjournal_conf_file_status: "Not checked"
+
+# Check if the rsyslog imjournal configuration file exists
+- name: Rsyslog Check | Check for rsyslog imjournal configuration file
+  ansible.builtin.stat:
+    path: "{{ rsyslog_imjournal_conf_file }}"
+  register: rsyslog_imjournal_conf_stat_result
+
+# Read the content of the rsyslog imjournal configuration file if it exists
+- name: Rsyslog Check | Slurp rsyslog imjournal conf content
+  ansible.builtin.slurp:
+    src: "{{ rsyslog_imjournal_conf_file }}"
+  register: rsyslog_imjournal_slurped_content
+  when: rsyslog_imjournal_conf_stat_result.stat.exists and rsyslog_imjournal_conf_stat_result.stat.isreg
+
+# Set the status of the rsyslog imjournal configuration file based on its content
+- name: Rsyslog Check | Finalize rsyslog imjournal configuration status
+  ansible.builtin.set_fact:
+    rsyslog_imjournal_conf_file_status: >-
+      {% set expected_content = 'module(load="imjournal" StateFile="imjournal.state")' %}
+      {% if not rsyslog_imjournal_conf_stat_result.stat.exists %}
+        No - File missing
+      {% elif rsyslog_imjournal_slurped_content.content is not defined %}
+        No - Could not read file
+      {% elif (rsyslog_imjournal_slurped_content.content | b64decode | trim) == "" %}
+        No - File is empty
+      {% elif (rsyslog_imjournal_slurped_content.content | b64decode | trim) == expected_content %}
+        Yes
+      {% else %}
+        No - Content incorrect (is:
+        '{{ rsyslog_imjournal_slurped_content.content | b64decode | trim }}')
+      {% endif %}
+
+# Display the results of all Rsyslog checks
+- name: Rsyslog Check | Display Rsyslog check results
+  ansible.builtin.debug:
+    msg:
+      - "Graylog Rsyslog Conf Exists: {{ graylog_conf_stat.stat.exists | default(false) }}"
+      - "Graylog Target IP (from conf): {{ graylog_target_ip_from_conf }}"
+      - "Journald Conf Exists: {{ journald_conf_exists }}"
+      - "Journald ForwardToSyslog: {{ journald_forward_to_syslog_status }}"
+      - "Rsyslog imjournal Conf Status: {{ rsyslog_imjournal_conf_file_status }}"

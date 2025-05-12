@@ -1,0 +1,143 @@
+===== Serverdetails | {{ inventory_hostname }} =====
+~~NOTOC~~
+
+<grid>
+<col sm="4">
+=== Serveromschrijving ===
+{% if server_description.content != '' %}
+{{ server_description.content | b64decode }}
+{% else %}
+  * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/description.txt''
+{% endif %}
+</col>
+
+
+<col sm="8">
+=== Servernotities ===
+{% if server_notes.content != '' %}
+{{ server_notes.content | b64decode }}
+{% else %}
+  * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/.notes.txt''
+{% endif %}
+</col>
+</grid>
+
+<grid>
+<col sm="4">
+{% if ansible_virtualization_role != 'guest' %}
+=== Hardware ===
+| Hardware| {{ ansible_system_vendor }} {{ ansible_product_name }} ( {{ ansible_product_serial }} ) |
+| CPU | {{ ansible_processor_count }} CPU x {{ ansible_processor_cores }} Cores |
+{% else %}
+=== Virtualization ===
+| Virtual| {{ ansible_virtualization_type }} {{ ansible_virtualization_role }} |
+| CPU | {{ ansible_processor_vcpus }} VPCU's |
+{% endif %}
+| RAM | {{ (ansible_memtotal_mb / 1024) | round(0) }} GB  ({{ ansible_memtotal_mb }} MB) |
+| SWAP | {{ (ansible_swaptotal_mb / 1024) | round(0) }} GB ({{ ansible_swaptotal_mb }} MB) |
+</col>
+
+<col sm="4">
+=== Besturingssysteem ===
+| OS | {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_architecture }}) |
+| Kernel | {{ ansible_kernel }} |
+| SELinux | {% if ansible_selinux and ansible_selinux.status is defined %}{{ ansible_selinux.status }}{% elif ansible_selinux == false %}Uitgeschakeld{% else %}Niet gedetecteerd{% endif %} |
+| AppArmor | {% if ansible_apparmor and ansible_apparmor.status is defined %}{{ ansible_apparmor.status }}{% else %}Niet gedetecteerd{% endif %} |
+</col>
+
+<col sm="4">
+=== Netwerk ===
+| Hostnaam | {{ ansible_hostname }} |
+| Domein | {{ ansible_domain }} |
+| FQDN | {{ ansible_fqdn }} |
+</col>
+</grid>
+
+<grid>
+<col sm="4">
+=== IPv4-adressen ===
+{% for ip in ansible_all_ipv4_addresses %}
+| {{ ip }} |
+{% endfor %}
+</col>
+
+<col sm="4">
+=== Zabbix Agent 2 ===
+| Geïnstalleerd | {% if zabbix_agent2_installed %}Ja{% else %}<color red>Nee</color>{% endif %} |
+{% if zabbix_agent2_installed %}
+| Service Ingeschakeld | {% if zabbix_agent2_enabled %}Ja{% else %}Nee{% endif %} |
+| Service Actief | {% if zabbix_agent2_active %}Ja{% else %}Nee{% endif %} |
+| Configuratiebestand ({{ '/etc/zabbix/zabbix_agent2.conf' }}) | {% if zabbix_agent2_conf_exists %}Aanwezig{% else %}Ontbreekt{% endif %} |
+{% endif %}
+</col>
+
+<col sm="4">
+=== Loggingconfiguratie ===
+| Systemd Journal doorsturen naar Syslog | {% if rsyslog_imjournal_conf_status | trim == "Ja" %}Ja{% else %}<color red>{{ rsyslog_imjournal_conf_status | trim }}</color>{% endif %} |
+| Rsyslog doorsturen naar Graylog | {% if graylog_configured %}Ja{% else %}<color red>Nee</color>{% endif %} |
+{% if graylog_configured %}
+| Graylog Doel-IP | {{ graylog_target_ip }} |
+{% endif %}
+</col>
+</grid>
+
+----
+=== Filesystem Mounts ===
+^ Mount Point ^ Device ^ Type ^ Opties ^ Totale Grootte (GB) ^ Beschikbare Grootte (GB) ^ Gebruikt % ^
+{% for mount in ansible_mounts %}
+{%   set total_gb = (mount.size_total / (1024*1024*1024)) | round(2) %}
+{%   set avail_gb = (mount.size_available / (1024*1024*1024)) | round(2) %}
+{%   set used_percent = 0 %}
+{%   if mount.size_total > 0 %}
+{%     set used_percent = (((mount.size_total - mount.size_available) * 100) / mount.size_total) | round(1) %}
+{%   endif %}
+| {{ mount.mount }} | {{ mount.device }} | {{ mount.fstype }} | {{ mount.options }} | {{ total_gb }} | {{ avail_gb }} | {{ used_percent }}% |
+{% endfor %}
+
+//**Waarschuwing:** De hierboven weergegeven filesystem informatie is een indicatie van het moment waarop het Ansible-playbook is uitgevoerd ({{ ansible_date_time.iso8601 }}). Dit is geen real-time gegeven en dient daarom niet te worden gebruikt als kritieke informatie voor operationele beslissingen.//
+
+----
+==== Server Changelog ====
+{{ server_changelog.content | b64decode }}
+
+  * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/changelog.txt''
+
+
+
+
+
+--- Monitoring Agents Status ---
+
+<WRAP group>
+===== Zabbix Agent =====
+  * **Installed:** {{ zabbix_agent_installed | default('Not Checked') }}
+  * **Service Enabled:** {{ zabbix_agent_enabled | default('Not Checked') }}
+  * **Service Active:** {{ zabbix_agent_active | default('Not Checked') }}
+  * **Config File Exists:** {{ zabbix_agent_conf_exists | default('Not Checked') }}
+  * **ServerActive IPs (from conf):** {{ zabbix_agent_serveractive_ips | default('Not Checked') }}
+</WRAP>
+
+<WRAP group>
+===== Wazuh Agent =====
+  * **Installed:** {{ wazuh_agent_installed | default('Not Checked') }}
+  * **Service Enabled:** {{ wazuh_agent_enabled | default('Not Checked') }}
+  * **Service Active:** {{ wazuh_agent_active | default('Not Checked') }}
+  * **Config File Exists:** {{ wazuh_agent_conf_exists | default('Not Checked') }}
+  * **Manager IP (from conf):** {{ wazuh_manager_ip_from_conf | default('Not Checked') }}
+</WRAP>
+
+<WRAP group>
+===== Rsyslog Configuration =====
+  * **Graylog Rsyslog Conf (/etc/rsyslog.d/99-graylog.conf):** {{ 'Exists' if graylog_conf_stat is defined and graylog_conf_stat.stat.exists else 'Missing/Not Checked' }}
+    * **Target IP (from conf):** {{ graylog_target_ip_from_conf | default('Not Checked') }}
+  * **Journald Conf (/etc/systemd/journald.conf):** {{ 'Exists' if journald_conf_exists | default(false) else 'Missing/Not Checked' }}
+    * **ForwardToSyslog Setting:** {{ journald_forward_to_syslog_status | default('Not Checked') }}
+  * **Rsyslog imjournal Conf (/etc/rsyslog.d/00-journalctl.conf):**
+    * **Status:** {{ rsyslog_imjournal_conf_file_status | default('Not Checked') }}
+</WRAP>
+
+--- Raw Facts (Sample) ---
+<file yml>
+ansible_processor_vcpus: {{ ansible_processor_vcpus | default('N/A') }}
+ansible_memtotal_mb: {{ ansible_memtotal_mb | default('N/A') }}
+</file>

@@ -1,0 +1,97 @@
+---
+# Tasks voor het aanmaken van lokale documentatiebestanden en het bijwerken van DokuWiki
+
+# Stop de play als de vereiste variabele niet is gedefinieerd
+- name: DokuWiki Update | Ensure dokuwiki_targetserver is defined
+  ansible.builtin.fail:
+    msg: "The variable 'dokuwiki_targetserver' must be defined to update DokuWiki. Please set it in your inventory or playbook vars."
+  when: dokuwiki_targetserver is not defined or dokuwiki_targetserver == "your_dokuwiki_server_hostname_or_ip"
+
+# Maak de directory aan voor lokale beschrijvingsbestanden op elke server
+- name: DokuWiki Update | Create directories for local description files on each server
+  ansible.builtin.file:
+    path: "{{ dokuwiki_local_destination }}"
+    state: directory
+    owner: "{{ dokuwiki_local_destination_user }}"
+    group: "{{ dokuwiki_local_destination_group }}"
+    mode: "0775"
+
+# Maak het lokale beschrijvingsbestand aan (indien nog niet aanwezig)
+- name: DokuWiki Update | Create the local description file on each server (if missing)
+  ansible.builtin.template:
+    src: description.txt.j2
+    dest: "{{ dokuwiki_local_destination }}/description.txt"
+    owner: "{{ dokuwiki_local_destination_user }}"
+    group: "{{ dokuwiki_local_destination_group }}"
+    mode: "0644"
+    force: false  # Overschrijf niet als het al bestaat
+
+# Lees de inhoud van het lokale beschrijvingsbestand
+- name: DokuWiki Update | Slurp the local description file content
+  ansible.builtin.slurp:
+    src: "{{ dokuwiki_local_destination }}/description.txt"
+  register: server_description
+
+# Maak het lokale changelog-bestand aan (indien nog niet aanwezig)
+- name: DokuWiki Update | Create the local changelog file on each server (if missing)
+  ansible.builtin.copy:
+    content: ""  # Maakt een leeg bestand aan
+    dest: "{{ dokuwiki_local_destination }}/changelog.txt"
+    owner: "{{ dokuwiki_local_destination_user }}"
+    group: "{{ dokuwiki_local_destination_group }}"
+    mode: "0644"
+    force: false  # Overschrijf niet als het al bestaat
+
+# Lees de inhoud van het lokale changelog-bestand
+- name: DokuWiki Update | Slurp the local changelog file content
+  ansible.builtin.slurp:
+    src: "{{ dokuwiki_local_destination }}/changelog.txt"
+  register: server_changelog
+
+# Maak het lokale notitie-bestand aan (indien nog niet aanwezig)
+- name: DokuWiki Update | Create the local notes file on each server (if missing)
+  ansible.builtin.copy:
+    content: ""  # Maakt een leeg bestand aan
+    dest: "{{ dokuwiki_local_destination }}/notes.txt"
+    owner: "{{ dokuwiki_local_destination_user }}"
+    group: "{{ dokuwiki_local_destination_group }}"
+    mode: "0644"
+    force: false  # Overschrijf niet als het al bestaat
+
+# Lees de inhoud van het lokale notitie-bestand
+- name: DokuWiki Update | Slurp the local notes file content
+  ansible.builtin.slurp:
+    src: "{{ dokuwiki_local_destination }}/notes.txt"
+  register: server_notes
+
+# Maak de basisdirectory's aan voor DokuWiki-pagina's op de DokuWiki-server
+- name: DokuWiki Update | Create base directories for DokuWiki pages on target server
+  ansible.builtin.file:
+    path: "{{ dokuwiki_directory }}"
+    state: directory
+    owner: "{{ dokuwiki_user }}"
+    group: "{{ dokuwiki_group }}"
+    mode: "0775"
+  delegate_to: "{{ dokuwiki_targetserver }}"
+  run_once: true
+
+# Plaats het serverlijst-template op de DokuWiki-server
+- name: DokuWiki Update | Place the server list template on the target server
+  ansible.builtin.template:
+    src: serverlist.txt.j2
+    dest: "{{ dokuwiki_serverlist_destination }}"
+    owner: "{{ dokuwiki_user }}"
+    group: "{{ dokuwiki_group }}"
+    mode: "0644"
+  delegate_to: "{{ dokuwiki_targetserver }}"
+  run_once: true
+
+# Plaats voor elke server een eigen pagina op de DokuWiki-server
+- name: DokuWiki Update | Place each server's page on DokuWiki target server
+  ansible.builtin.template:
+    src: server.txt.j2
+    dest: "{{ dokuwiki_directory }}/{{ inventory_hostname | replace('.', '_') }}.txt"  # Vervang punten voor DokuWiki-compatibiliteit
+    owner: "{{ dokuwiki_user }}"
+    group: "{{ dokuwiki_group }}"
+    mode: "0644"
+  delegate_to: "{{ dokuwiki_targetserver }}"

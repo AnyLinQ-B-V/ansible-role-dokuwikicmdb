@@ -1,0 +1,11 @@
+# Ansible managed server lijst
+
+<datatables page-length="100">
+^ Naam ^ OS ^ Actieve Kernel ^
+{% for host in groups['all']|sort %}
+| [[interne_it:serverlijst:{{ hostvars[host]['inventory_hostname'] }} | {{ hostvars[host]['inventory_hostname'] }}]] | {{ hostvars[host]['ansible_distribution'] }} {{ hostvars[host]['ansible_distribution_version'] }} | {{ hostvars[host]['ansible_kernel'] }} |
+{% endfor %}
+</datatables>
+
+----
+Deze lijst is gegenereerd door: https://github.com/AnyLinQ-B-V/ansible-role-dokuwikicmdb

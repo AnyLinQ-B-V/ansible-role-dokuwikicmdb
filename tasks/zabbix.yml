@@ -1,0 +1,80 @@
+---
+# Takenbestand voor Zabbix agent check
+
+# Zet initiële feiten voor Zabbix Agent status en config
+- name: Zabbix Check | Initialize Zabbix Agent facts
+  ansible.builtin.set_fact:
+    zabbix_agent_installed: false
+    zabbix_agent_enabled: false
+    zabbix_agent_active: false
+    zabbix_agent_conf_exists: false
+    zabbix_agent_serveractive_ips: "N/A"
+
+# Controleer of het Zabbix Agent pakket geïnstalleerd is
+- name: Zabbix Check | Check Zabbix Agent installation status
+  ansible.builtin.set_fact:
+    zabbix_agent_installed: true
+  when: "ansible_facts.packages[zabbix_agent_package_name] is defined"
+
+# Werk feiten bij over de Zabbix Agent service (enabled/running)
+- name: Zabbix Check | Update Zabbix Agent service status facts
+  ansible.builtin.set_fact:
+    zabbix_agent_enabled: "{{ ansible_facts.services[zabbix_agent_service_name].status == 'enabled' }}"
+    zabbix_agent_active: "{{ ansible_facts.services[zabbix_agent_service_name].state == 'running' }}"
+  when:
+    - zabbix_agent_installed
+    - "ansible_facts.services[zabbix_agent_service_name] is defined"
+
+# Controleer of het Zabbix Agent configuratiebestand bestaat
+- name: Zabbix Check | Check for Zabbix Agent configuration file
+  ansible.builtin.stat:
+    path: "{{ zabbix_agent_conf_file }}"
+  register: zabbix_agent_conf_stat_result
+  when: zabbix_agent_installed
+
+# Zet feit als het Zabbix Agent configuratiebestand bestaat en een regulier bestand is
+- name: Zabbix Check | Update Zabbix Agent conf existence fact
+  ansible.builtin.set_fact:
+    zabbix_agent_conf_exists: true
+  when:
+    - zabbix_agent_installed
+    - zabbix_agent_conf_stat_result.stat is defined
+    - zabbix_agent_conf_stat_result.stat.exists
+    - zabbix_agent_conf_stat_result.stat.isreg
+
+# Lees de inhoud van het Zabbix Agent configuratiebestand als het bestaat
+- name: Zabbix Check | Read Zabbix Agent configuration file content
+  ansible.builtin.slurp:
+    src: "{{ zabbix_agent_conf_file }}"
+  register: zabbix_agent_conf_content
+  when: zabbix_agent_conf_exists
+
+# Haal de ServerActive IP-adressen uit het configuratiebestand
+- name: Zabbix Check | Extract Zabbix ServerActive IPs
+  ansible.builtin.set_fact:
+    zabbix_agent_serveractive_ips: >-
+      {%- set ips = [] -%}
+      {%- if zabbix_agent_conf_content.content is defined -%}
+        {%- set decoded_content = zabbix_agent_conf_content.content | b64decode -%}
+        {%- set matches = decoded_content | regex_findall('^\\s*ServerActive\\s*=\\s*([^#\\n]+)') -%}
+        {%- for match_line in matches -%}
+          {%- for ip_part in match_line.split(',') -%}
+            {%- set ip = ip_part | trim | regex_search('^([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})') -%}
+            {%- if ip and ip[0] not in ips -%}
+              {%- set _ = ips.append(ip[0]) -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {{- ips | join(',') if ips else 'Not configured or found' -}}
+  when: zabbix_agent_conf_exists and zabbix_agent_conf_content.content is defined
+
+# Toon de resultaten van alle Zabbix Agent checks
+- name: Zabbix Check | Display Zabbix Agent check results
+  ansible.builtin.debug:
+    msg:
+      - "Zabbix Agent Installed: {{ zabbix_agent_installed }}"
+      - "Zabbix Agent Enabled: {{ zabbix_agent_enabled }}"
+      - "Zabbix Agent Active: {{ zabbix_agent_active }}"
+      - "Zabbix Agent Conf Exists: {{ zabbix_agent_conf_exists }}"
+      - "Zabbix Agent ServerActive IPs: {{ zabbix_agent_serveractive_ips }}"

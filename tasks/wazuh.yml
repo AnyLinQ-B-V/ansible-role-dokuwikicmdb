@@ -1,0 +1,73 @@
+---
+# tasks file for Wazuh agent check
+
+# Initialize facts for Wazuh Agent status and config
+- name: Wazuh Check | Initialize Wazuh Agent facts
+  ansible.builtin.set_fact:
+    wazuh_agent_installed: false
+    wazuh_agent_enabled: false
+    wazuh_agent_active: false
+    wazuh_agent_conf_exists: false
+    wazuh_manager_ip_from_conf: "N/A"
+
+# Check if the Wazuh Agent package is installed
+- name: Wazuh Check | Check Wazuh Agent installation status
+  ansible.builtin.set_fact:
+    wazuh_agent_installed: true
+  when: "ansible_facts.packages[wazuh_agent_package_name] is defined"
+
+# Update facts for Wazuh Agent service (enabled/running)
+- name: Wazuh Check | Update Wazuh Agent service status facts
+  ansible.builtin.set_fact:
+    wazuh_agent_enabled: "{{ ansible_facts.services[wazuh_agent_service_name].status == 'enabled' }}"
+    wazuh_agent_active: "{{ ansible_facts.services[wazuh_agent_service_name].state == 'running' }}"
+  when:
+    - wazuh_agent_installed
+    - "ansible_facts.services[wazuh_agent_service_name] is defined"
+
+# Check if the Wazuh Agent configuration file exists
+- name: Wazuh Check | Check for Wazuh Agent configuration file
+  ansible.builtin.stat:
+    path: "{{ wazuh_agent_conf_file }}"
+  register: wazuh_agent_conf_stat_result
+  when: wazuh_agent_installed
+
+# Update fact if Wazuh Agent configuration file exists and is a regular file
+- name: Wazuh Check | Update Wazuh Agent conf existence fact
+  ansible.builtin.set_fact:
+    wazuh_agent_conf_exists: true
+  when:
+    - wazuh_agent_installed
+    - wazuh_agent_conf_stat_result.stat is defined
+    - wazuh_agent_conf_stat_result.stat.exists
+    - wazuh_agent_conf_stat_result.stat.isreg
+
+# Read the content of the Wazuh Agent configuration file if it exists
+- name: Wazuh Check | Read Wazuh Agent configuration file content
+  ansible.builtin.slurp:
+    src: "{{ wazuh_agent_conf_file }}"
+  register: wazuh_agent_conf_content
+  when: wazuh_agent_conf_exists
+
+# Extract the Wazuh Manager IP from the configuration file content
+- name: Wazuh Check | Extract Wazuh Manager IP from configuration
+  ansible.builtin.set_fact:
+    wazuh_manager_ip_from_conf: >-
+      {%- set manager_ip = 'Not configured or found' -%}
+      {%- if wazuh_agent_conf_content.content is defined -%}
+        {%- set decoded_content = wazuh_agent_conf_content.content | b64decode -%}
+        {%- set match = decoded_content | regex_search('<client>\\s*<server>\\s*<address>\\s*([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\\s*</address>', '\\1') -%}
+        {%- if match and match[0] -%}{%- set manager_ip = match[0] -%}{%- endif -%}
+      {%- endif -%}
+      {{- manager_ip -}}
+  when: wazuh_agent_conf_exists and wazuh_agent_conf_content.content is defined
+
+# Display the results of all Wazuh Agent checks
+- name: Wazuh Check | Display Wazuh Agent check results
+  ansible.builtin.debug:
+    msg:
+      - "Wazuh Agent Installed: {{ wazuh_agent_installed }}"
+      - "Wazuh Agent Enabled: {{ wazuh_agent_enabled }}"
+      - "Wazuh Agent Active: {{ wazuh_agent_active }}"
+      - "Wazuh Agent Conf Exists: {{ wazuh_agent_conf_exists }}"
+      - "Wazuh Manager IP (from conf): {{ wazuh_manager_ip_from_conf }}"
