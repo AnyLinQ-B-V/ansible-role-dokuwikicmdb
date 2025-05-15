@@ -90,7 +90,7 @@
 - name: DokuWiki Update | Place each server's page on DokuWiki target server
   ansible.builtin.template:
     src: server.txt.j2
-    dest: "{{ dokuwiki_directory }}/{{ inventory_hostname | replace('.', '_') }}.txt"  # Vervang punten voor DokuWiki-compatibiliteit
+    dest: "{{ dokuwiki_directory }}/{{ inventory_hostname }}.txt"
     owner: "{{ dokuwiki_user }}"
     group: "{{ dokuwiki_group }}"
     mode: "0644"

@@ -70,21 +70,19 @@
 - name: Rsyslog Check | Check ForwardToSyslog in journald.conf
   ansible.builtin.set_fact:
     journald_forward_to_syslog_status: >-
-      {%- set _status = "Setting not found" -%}
+      {%- set _status = "Instelling niet gevonden" -%}
       {%- set _found_setting = false -%}
       {%- if journald_conf_content_result.content is defined -%}
         {%- set decoded_content = journald_conf_content_result.content | b64decode -%}
         {%- for line in decoded_content.split('\n') | reverse -%}
           {%- if not _found_setting -%}
-            {%- set match = line | regex_search(
-              '^\\s*ForwardToSyslog\\s*=\\s*([^#\\n]+)', multiline=True
-            ) -%}
+            {%- set match = line | regex_search('^\\s*ForwardToSyslog\\s*=\\s*([^#\\n]+)', multiline=True) -%}
             {%- if match and match[0] and (match[0] | trim | lower == 'yes') -%}
-              {%- set _status = "Yes" -%}
+              {%- set _status = "Ja" -%}
               {%- set _found_setting = true -%}
             {%- endif -%}
             {%- if not _found_setting and match and match[0] and (match[0] | trim | lower != 'yes') -%}
-              {%- set _status = "No (value: " ~ (match[0] | trim) ~ ")" -%}
+              {%- set _status = "Nee (waarde: " ~ (match[0] | trim) ~ ")" -%}
               {%- set _found_setting = true -%}
             {%- endif -%}
           {%- endif -%}

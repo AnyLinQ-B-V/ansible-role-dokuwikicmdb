@@ -50,36 +50,45 @@
 | Hostnaam | {{ ansible_hostname }} |
 | Domein | {{ ansible_domain }} |
 | FQDN | {{ ansible_fqdn }} |
+{% for ip in ansible_all_ipv4_addresses %}
+| | {{ ip }} |
+{% endfor %}
 </col>
 </grid>
 
 <grid>
-<col sm="4">
-=== IPv4-adressen ===
-{% for ip in ansible_all_ipv4_addresses %}
-| {{ ip }} |
-{% endfor %}
-</col>
-
+{% if check_zabbix | lower in ['true', 'yes'] %}
 <col sm="4">
 === Zabbix Agent 2 ===
-| Geïnstalleerd | {% if zabbix_agent2_installed %}Ja{% else %}<color red>Nee</color>{% endif %} |
-{% if zabbix_agent2_installed %}
-| Service Ingeschakeld | {% if zabbix_agent2_enabled %}Ja{% else %}Nee{% endif %} |
-| Service Actief | {% if zabbix_agent2_active %}Ja{% else %}Nee{% endif %} |
-| Configuratiebestand ({{ '/etc/zabbix/zabbix_agent2.conf' }}) | {% if zabbix_agent2_conf_exists %}Aanwezig{% else %}Ontbreekt{% endif %} |
+| Geïnstalleerd | {% if zabbix_agent_installed | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
+{% if zabbix_agent_installed | default(false) %}
+| Service Ingeschakeld | {% if zabbix_agent_enabled | default(false) %}Ja{% else %}Nee{% endif %} |
+| Service Actief | {% if zabbix_agent_active | default(false) %}Ja{% else %}Nee{% endif %} |
+| Configuratiebestand ({{ '/etc/zabbix/zabbix_agent2.conf' }}) | {% if zabbix_agent_conf_exists | default(false) %}Aanwezig{% else %}Ontbreekt{% endif %} |
 {% endif %}
 </col>
+{% endif %}
+
+{% if check_rsyslog | lower in ['true', 'yes'] %}
+<col sm="4">
+=== Logging Configuratie ===
+| Systemd Journal doorsturen naar Syslog | {% if rsyslog_imjournal_conf_file_status | default('') | trim == "Yes" %}Ja{% else %}<color red>{{ rsyslog_imjournal_conf_file_status | default('Nee') | trim }}</color>{% endif %} |
+| Rsyslog doorsturen naar Graylog | {% if graylog_configured_via_file | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
+| Graylog Doel-IP | {{ graylog_target_ip_from_conf | default('N/A') }} |
+</col>
+{% endif %}
 
 <col sm="4">
-=== Loggingconfiguratie ===
-| Systemd Journal doorsturen naar Syslog | {% if rsyslog_imjournal_conf_status | trim == "Ja" %}Ja{% else %}<color red>{{ rsyslog_imjournal_conf_status | trim }}</color>{% endif %} |
-| Rsyslog doorsturen naar Graylog | {% if graylog_configured %}Ja{% else %}<color red>Nee</color>{% endif %} |
-{% if graylog_configured %}
-| Graylog Doel-IP | {{ graylog_target_ip }} |
-{% endif %}
+=== NTP Configuratie ===
+| NTP Installed | {% if ntp_installed_package is defined and ntp_installed_package != 'none' and ntp_installed_package != '' %}{{ ntp_installed_package }}{% else %}<color red>Nee</color>{% endif %} |
+| NTP Service Enabled | {{ ntp_service_enabled | default('N/A') }} ({{ ntp_enabled_service | default('') }}) |
+| NTP Service Active | {{ ntp_service_active | default('N/A') }} ({{ ntp_active_service | default('') }}) |
+| NTP Servers | {{ ntp_servers | default('N/A') }} |
 </col>
+
 </grid>
+
+
 
 ----
 === Filesystem Mounts ===
@@ -101,43 +110,3 @@
 {{ server_changelog.content | b64decode }}
 
   * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/changelog.txt''
-
-
-
-
-
---- Monitoring Agents Status ---
-
-<WRAP group>
-===== Zabbix Agent =====
-  * **Installed:** {{ zabbix_agent_installed | default('Not Checked') }}
-  * **Service Enabled:** {{ zabbix_agent_enabled | default('Not Checked') }}
-  * **Service Active:** {{ zabbix_agent_active | default('Not Checked') }}
-  * **Config File Exists:** {{ zabbix_agent_conf_exists | default('Not Checked') }}
-  * **ServerActive IPs (from conf):** {{ zabbix_agent_serveractive_ips | default('Not Checked') }}
-</WRAP>
-
-<WRAP group>
-===== Wazuh Agent =====
-  * **Installed:** {{ wazuh_agent_installed | default('Not Checked') }}
-  * **Service Enabled:** {{ wazuh_agent_enabled | default('Not Checked') }}
-  * **Service Active:** {{ wazuh_agent_active | default('Not Checked') }}
-  * **Config File Exists:** {{ wazuh_agent_conf_exists | default('Not Checked') }}
-  * **Manager IP (from conf):** {{ wazuh_manager_ip_from_conf | default('Not Checked') }}
-</WRAP>
-
-<WRAP group>
-===== Rsyslog Configuration =====
-  * **Graylog Rsyslog Conf (/etc/rsyslog.d/99-graylog.conf):** {{ 'Exists' if graylog_conf_stat is defined and graylog_conf_stat.stat.exists else 'Missing/Not Checked' }}
-    * **Target IP (from conf):** {{ graylog_target_ip_from_conf | default('Not Checked') }}
-  * **Journald Conf (/etc/systemd/journald.conf):** {{ 'Exists' if journald_conf_exists | default(false) else 'Missing/Not Checked' }}
-    * **ForwardToSyslog Setting:** {{ journald_forward_to_syslog_status | default('Not Checked') }}
-  * **Rsyslog imjournal Conf (/etc/rsyslog.d/00-journalctl.conf):**
-    * **Status:** {{ rsyslog_imjournal_conf_file_status | default('Not Checked') }}
-</WRAP>
-
---- Raw Facts (Sample) ---
-<file yml>
-ansible_processor_vcpus: {{ ansible_processor_vcpus | default('N/A') }}
-ansible_memtotal_mb: {{ ansible_memtotal_mb | default('N/A') }}
-</file>

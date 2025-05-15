@@ -1,0 +1,113 @@
+---
+# tasks file for NTP checks
+- name: Set NTP package and service candidates
+  ansible.builtin.set_fact:
+    ntp_packages:
+      - chrony
+      - ntp
+      - systemd-timesyncd
+    ntp_services:
+      - chronyd
+      - ntpd
+      - systemd-timesyncd
+
+- name: Check if any NTP package is installed
+  ansible.builtin.set_fact:
+    ntp_installed: >-
+      {{
+        ntp_packages
+        | select('in', ansible_facts.packages.keys() | list)
+        | list
+        | length > 0
+        | bool
+      }}
+
+- name: Find installed NTP package
+  ansible.builtin.set_fact:
+    ntp_installed_package: >-
+      {{
+        (ntp_packages
+        | select('in', ansible_facts.packages.keys() | list)
+        | list
+        | first)
+        | default('none')
+      }}
+
+- name: Check if any NTP service is enabled
+  ansible.builtin.set_fact:
+    ntp_service_enabled: >-
+      {{
+        ntp_services | select('in', (ansible_facts.services | default({})).keys() | list)
+        | map('extract', ansible_facts.services, 'enabled')
+        | select('equalto', true)
+        | list | length > 0 | bool
+      }}
+
+- name: Find enabled NTP service
+  ansible.builtin.set_fact:
+    ntp_enabled_service: >-
+      {{
+        (ntp_services | select('in', (ansible_facts.services | default({})).keys() | list)
+        | select('extract', ansible_facts.services, 'enabled')
+        | select('equalto', true)
+        | list | first) | default('none')
+      }}
+
+- name: Check if any NTP service is running
+  ansible.builtin.set_fact:
+    ntp_service_active: >-
+      {{
+        ntp_services | select('in', (ansible_facts.services | default({})).keys() | list)
+        | map('extract', ansible_facts.services, 'state')
+        | select('equalto', 'running')
+        | list | length > 0 | bool
+      }}
+
+- name: Find active NTP service
+  ansible.builtin.set_fact:
+    ntp_active_service: >-
+      {{
+        (ntp_services | select('in', (ansible_facts.services | default({})).keys() | list)
+        | select('extract', ansible_facts.services, 'state')
+        | select('equalto', 'running')
+        | list | first) | default('none')
+      }}
+
+- name: Check for chrony.conf
+  ansible.builtin.slurp:
+    src: /etc/chrony/chrony.conf
+  register: chrony_conf_content
+  ignore_errors: true
+
+- name: Read ntp.conf if present
+  ansible.builtin.slurp:
+    src: /etc/ntp.conf
+  register: ntp_conf_content
+  ignore_errors: true
+
+- name: Read timesyncd.conf if present
+  ansible.builtin.slurp:
+    src: /etc/systemd/timesyncd.conf
+  register: timesyncd_conf_content
+  ignore_errors: true
+
+- name: Extract NTP servers from chrony.conf
+  ansible.builtin.set_fact:
+    ntp_servers: >-
+      {%- if chrony_conf_content.content is defined -%}
+        {{ (chrony_conf_content.content | b64decode).split('\n') | select('match', '^server\\s+') | map('regex_replace', '^server\\s+([^\\s]+).*', '\\1') | list }}
+      {%- elif ntp_conf_content.content is defined -%}
+        {{ (ntp_conf_content.content | b64decode).split('\n') | select('match', '^server\\s+') | map('regex_replace', '^server\\s+([^\\s]+).*', '\\1') | list }}
+      {%- elif timesyncd_conf_content.content is defined -%}
+        {{ (timesyncd_conf_content.content | b64decode).split('\n') | select('match', '^NTP=') | map('regex_replace', '^NTP=([^\\s]+).*', '\\1') | list }}
+      {%- else -%}
+        []
+      {%- endif -%}
+
+- name: Show NTP status summary
+  ansible.builtin.debug:
+    msg:
+      - "NTP Installed: {{ ntp_installed }} ({{ ntp_installed_package }})"
+      - "NTP Service Enabled: {{ ntp_service_enabled }} ({{ ntp_enabled_service }})"
+      - "NTP Service Active: {{ ntp_service_active }} ({{ ntp_active_service }})"
+      - "NTP servers: {{ ntp_servers | default([]) }}"

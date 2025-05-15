@@ -7,14 +7,25 @@
 - name: Gather service facts if not already gathered
   ansible.builtin.service_facts:
 
+- name: DEBUG | This role is running
+  ansible.builtin.debug:
+    msg: "dokuwikicmdb role is running on {{ inventory_hostname }}"
+
 - name: Include Zabbix tasks
   ansible.builtin.include_tasks: zabbix.yml
-  when: check_zabbix == "yes"
+  when: (check_zabbix | default('no') | lower) in ["true", "yes"]
 
 - name: Include Wazuh tasks
   ansible.builtin.include_tasks: wazuh.yml
-  when: check_wazuh == "yes"
+  when: (check_wazuh | default('no') | lower) in ["true", "yes"]
 
 - name: Include Rsyslog tasks
   ansible.builtin.include_tasks: rsyslog.yml
-  when: check_rsyslog == "yes"
+  when: (check_rsyslog | default('no') | lower) in ["true", "yes"]
+
+- name: Include ntp tasks
+  ansible.builtin.include_tasks: ntp.yml
+  when: (check_ntp | default('no') | lower) in ["true", "yes"]
+
+- name: Include Dokuwiki tasks
+  ansible.builtin.include_tasks: dokuwiki.yml
