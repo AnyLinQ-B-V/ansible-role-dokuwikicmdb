@@ -4,7 +4,9 @@
 # Stop de play als de vereiste variabele niet is gedefinieerd
 - name: DokuWiki Update | Ensure dokuwiki_targetserver is defined
   ansible.builtin.fail:
-    msg: "The variable 'dokuwiki_targetserver' must be defined to update DokuWiki. Please set it in your inventory or playbook vars."
+    msg: >
+      The variable 'dokuwiki_targetserver' must be defined to update DokuWiki.
+      Please set it in your inventory or playbook vars.
   when: dokuwiki_targetserver is not defined or dokuwiki_targetserver == "your_dokuwiki_server_hostname_or_ip"
 
 # Maak de directory aan voor lokale beschrijvingsbestanden op elke server
@@ -27,13 +29,24 @@
     force: false  # Overschrijf niet als het al bestaat
 
 # Lees de inhoud van het lokale beschrijvingsbestand
-- name: DokuWiki Update | Slurp the local description file content
+- name: DokuWiki Update | Slurp local description file
   ansible.builtin.slurp:
     src: "{{ dokuwiki_local_destination }}/description.txt"
-  register: server_description
+  register: server_description_slurped
+  ignore_errors: true
+
+- name: DokuWiki Update | Set server_description fact
+  ansible.builtin.set_fact:
+    server_description:
+      content: >-
+        {% if server_description_slurped is succeeded and server_description_slurped.content is defined %}
+        {{ server_description_slurped.content }}
+        {% else %}
+        {{ '' | b64encode }}
+        {% endif %}
 
 # Maak het lokale changelog-bestand aan (indien nog niet aanwezig)
-- name: DokuWiki Update | Create the local changelog file on each server (if missing)
+- name: DokuWiki Update | Create local changelog file (if missing)
   ansible.builtin.copy:
     content: ""  # Maakt een leeg bestand aan
     dest: "{{ dokuwiki_local_destination }}/changelog.txt"
@@ -43,13 +56,25 @@
     force: false  # Overschrijf niet als het al bestaat
 
 # Lees de inhoud van het lokale changelog-bestand
-- name: DokuWiki Update | Slurp the local changelog file content
+- name: DokuWiki Update | Slurp local changelog file
   ansible.builtin.slurp:
     src: "{{ dokuwiki_local_destination }}/changelog.txt"
-  register: server_changelog
+  register: server_changelog_slurped
+  ignore_errors: true
+
+- name: DokuWiki Update | Set server_changelog fact
+  ansible.builtin.set_fact:
+    server_changelog:
+      content: >-
+        {% if server_changelog_slurped is succeeded and server_changelog_slurped.content is defined %}
+        {{ server_changelog_slurped.content }}
+        {% else %}
+        {{ '' | b64encode }}
+        {% endif %}
+
 
 # Maak het lokale notitie-bestand aan (indien nog niet aanwezig)
-- name: DokuWiki Update | Create the local notes file on each server (if missing)
+- name: DokuWiki Update | Create local notes file (if missing)
   ansible.builtin.copy:
     content: ""  # Maakt een leeg bestand aan
     dest: "{{ dokuwiki_local_destination }}/notes.txt"
@@ -59,15 +84,26 @@
     force: false  # Overschrijf niet als het al bestaat
 
 # Lees de inhoud van het lokale notitie-bestand
-- name: DokuWiki Update | Slurp the local notes file content
+- name: DokuWiki Update | Slurp local notes file
   ansible.builtin.slurp:
     src: "{{ dokuwiki_local_destination }}/notes.txt"
-  register: server_notes
+  register: server_notes_slurped
+  ignore_errors: true
+
+- name: DokuWiki Update | Set server_notes fact
+  ansible.builtin.set_fact:
+    server_notes:
+      content: >-
+        {% if server_notes_slurped is succeeded and server_notes_slurped.content is defined %}
+        {{ server_notes_slurped.content }}
+        {% else %}
+        {{ '' | b64encode }}
+        {% endif %}
 
 # Maak de basisdirectory's aan voor DokuWiki-pagina's op de DokuWiki-server
 - name: DokuWiki Update | Create base directories for DokuWiki pages on target server
   ansible.builtin.file:
-    path: "{{ dokuwiki_directory }}"
+    path: "{{ dokuwiki_data_root_path }}/{{ (dokuwiki_server_pages_namespace | replace(':', '/')) if dokuwiki_server_pages_namespace else '' }}"
     state: directory
     owner: "{{ dokuwiki_user }}"
     group: "{{ dokuwiki_group }}"
@@ -75,11 +111,25 @@
   delegate_to: "{{ dokuwiki_targetserver }}"
   run_once: true
 
-# Plaats het serverlijst-template op de DokuWiki-server
+# Debug: Check the value of dokuwiki_server_pages_namespace before using it in the template
+- name: DokuWiki Update | Debug dokuwiki_server_pages_namespace
+  ansible.builtin.debug:
+    msg: "dokuwiki_server_pages_namespace is: {{ dokuwiki_server_pages_namespace }}"
+  delegate_to: "{{ dokuwiki_targetserver }}"  # Debug on the same host context as the template task
+  run_once: true
+
+# Set dokuwiki_link_ns_for_server_pages as a fact on the target server
+- name: DokuWiki Update | Set fact for server list template namespace
+  ansible.builtin.set_fact:
+    dokuwiki_link_ns_for_server_pages: "{{ dokuwiki_server_pages_namespace }}"
+  delegate_to: "{{ dokuwiki_targetserver }}"
+  run_once: true
+
+# Zorg ervoor dat de directory voor de serverlijst bestaat
 - name: DokuWiki Update | Place the server list template on the target server
   ansible.builtin.template:
     src: serverlist.txt.j2
-    dest: "{{ dokuwiki_serverlist_destination }}"
+    dest: "{{ dokuwiki_data_root_path }}/{{ dokuwiki_serverlist_page_fqn | replace(':', '/') }}.txt"
     owner: "{{ dokuwiki_user }}"
     group: "{{ dokuwiki_group }}"
     mode: "0644"
@@ -90,7 +140,7 @@
 - name: DokuWiki Update | Place each server's page on DokuWiki target server
   ansible.builtin.template:
     src: server.txt.j2
-    dest: "{{ dokuwiki_directory }}/{{ inventory_hostname }}.txt"
+    dest: "{{ dokuwiki_data_root_path }}/{{ (dokuwiki_server_pages_namespace | replace(':', '/')) if dokuwiki_server_pages_namespace else '' }}/{{ inventory_hostname }}.txt"
     owner: "{{ dokuwiki_user }}"
     group: "{{ dokuwiki_group }}"
     mode: "0644"

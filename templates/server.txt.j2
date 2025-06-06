@@ -17,7 +17,7 @@
 {% if server_notes.content != '' %}
 {{ server_notes.content | b64decode }}
 {% else %}
-  * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/.notes.txt''
+  * ''Deze wordt gelezen vanaf de server zelf in {{ dokuwiki_local_destination }}/notes.txt''
 {% endif %}
 </col>
 </grid>
@@ -92,16 +92,10 @@
 | Realmd Geïnstalleerd | {% if realmd_installed | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
 {% if realmd_installed | default(false) %}
 | Gekoppeld aan Domein | {% if realmd_is_joined | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
-{%   if realmd_is_joined | default(false) %}
-| Domein Naam | {{ realmd_name | default('N/A') }} |
-| Domein Type | {{ realmd_type | default('N/A') }} |
-| Configuratie Methode | {{ realmd_configured_method | default('N/A') }} |
-| Login Formats | {{ realmd_login_formats | default('N/A') }} |
-{%   else %}
-| Status | <color red>{{ realmd_status_message | default('Niet gekoppeld of fout bij controle.') }}</color> |
-{%   endif %}
-{% elif realmd_status_message is defined and realmd_status_message != "Checking..." %}
-| Status | <color red>{{ realmd_status_message }}</color> |
+| Toegestane Groepen (/etc/sssd/sssd.conf) | {{ realmd_simple_allow_groups | default('<color gray>N/A</color>') }} |
+| Sudo Groepen (/etc/sudoers.d) | {{ realmd_sudoers_d_groups | default('<color gray>N/A</color>') }} |
+{% else %} {# realmd_installed is false #}
+| Status | <color red>{{ realmd_status_message | default('Realmd niet geïnstalleerd of check mislukt.') }}</color> |
 {% endif %}
 </col>
 {% endif %}

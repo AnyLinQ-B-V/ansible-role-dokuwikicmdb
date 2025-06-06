@@ -107,7 +107,7 @@
 - name: Show NTP status summary
   ansible.builtin.debug:
     msg:
-      - "NTP Installed: {{ ntp_installed }} ({{ ntp_installed_package }})"
-      - "NTP Service Enabled: {{ ntp_service_enabled }} ({{ ntp_enabled_service }})"
-      - "NTP Service Active: {{ ntp_service_active }} ({{ ntp_active_service }})"
+      - "NTP Installed: {{ ntp_installed }} (Package: {{ ntp_installed_package }})"
+      - "NTP Service Enabled: {{ ntp_service_enabled }} (Service: {{ ntp_enabled_service }})"
+      - "NTP Active: {{ ntp_service_active }} (Svc: {{ ntp_active_service }})"
       - "NTP servers: {{ ntp_servers | default([]) }}"

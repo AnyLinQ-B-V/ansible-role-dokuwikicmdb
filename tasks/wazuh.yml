@@ -69,5 +69,5 @@
       - "Wazuh Agent Installed: {{ wazuh_agent_installed }}"
       - "Wazuh Agent Enabled: {{ wazuh_agent_enabled }}"
       - "Wazuh Agent Active: {{ wazuh_agent_active }}"
-      - "Wazuh Agent Conf Exists: {{ wazuh_agent_conf_exists }}"
+      - "Wazuh Conf Exists: {{ wazuh_agent_conf_exists }}"
       - "Wazuh Manager IP (from conf): {{ wazuh_manager_ip_from_conf }}"

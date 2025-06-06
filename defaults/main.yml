@@ -28,11 +28,25 @@ dokuwiki_local_destination_group: "root"
 
 # Variables for DokuWiki target server (used by dokuwiki action)
 # IMPORTANT: You MUST override 'dokuwiki_targetserver' with your actual DokuWiki server hostname or IP.
-dokuwiki_targetserver: "your_dokuwiki_server_hostname_or_ip"
-dokuwiki_directory: "/srv/dokuwiki/data/pages/servers"  # Path to server pages on DokuWiki server
+dokuwiki_targetserver: "your_dokuwiki_server_hostname_or_ip"  # Hostname or IP of the DokuWiki server
+dokuwiki_data_root_path: "/srv/dokuwiki/data/pages"      # Base path to DokuWiki's pages directory
+
+# Namespace for individual server pages (e.g., "servers" or "internal:cmdb:nodes")
+# This will be used to construct disk paths and DokuWiki links.
+dokuwiki_server_pages_namespace: "servers"
+
+# Fully qualified DokuWiki page name for the server list (e.g., "serverlist" or "internal:cmdb:server_overview")
+dokuwiki_serverlist_page_fqn: "serverlist"
+
 dokuwiki_user: "www-data"  # User that owns DokuWiki files (e.g., apache, nginx, www-data)
 dokuwiki_group: "www-data"  # Group for DokuWiki files
-dokuwiki_serverlist_destination: "/srv/dokuwiki/data/pages/serverlist.txt"  # Path for the server list page
 
-# Realmd check specific variable
-check_realmd: "yes"  # Set to "yes" or "true" to enable realmd checks
+# Variables to enable/disable specific checks
+check_zabbix: "yes"
+check_wazuh: "no"
+check_rsyslog: "yes"
+check_ntp: "yes"
+check_realmd: "yes"
+
+# General debug flag for this role's specific checks
+dokuwikicmdb_debug_checks: "yes"

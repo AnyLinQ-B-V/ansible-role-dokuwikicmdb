@@ -1,136 +1,169 @@
-# Ansible Role: dokuwikicmdb
+# Ansible Role: DokuWiki CMDB
 
-[![CI](https://github.com/anylinq-B-V/ansible-role-dokuwikicmdb/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/anylinq-B-V/ansible-role-dokuwikicmdb/actions/workflows/ci.yml)
-[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
+[![CI](https://github.com/AnyLinQ-B-V/ansible-role-dokuwikicmdb/actions/workflows/ci.yml/badge.svg)](https://github.com/AnyLinQ-B-V/ansible-role-dokuwikicmdb/actions/workflows/ci.yml)
+[![Ansible Galaxy](https://img.shields.io/ansible/role/d/anylinq/dokuwikicmdb)](https://galaxy.ansible.com/anylinq/dokuwikicmdb)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Overview
-
-This Ansible role creates and manages a Configuration Management Database (CMDB) in [DokuWiki](https://www.dokuwiki.org/). It collects system information from your servers, generates documentation files locally, and updates DokuWiki pages with server details, monitoring agent status, logging configuration, and more.
+This Ansible role gathers information from managed hosts and generates CMDB (Configuration Management Database) pages in a DokuWiki instance. It also creates a server list page for easy navigation.
 
 ## Features
 
-- Collects and documents server hardware, OS, and network details.
-- Integrates with Zabbix Agent 2 and Wazuh Agent for monitoring status.
-- Checks and documents rsyslog and journald logging configuration.
-- Generates and uploads server description, notes, and changelog files.
-- Creates a server list page and individual server pages in DokuWiki using Jinja2 templates.
+*   Collects basic system information (OS, kernel, hardware, network).
+*   Collects filesystem mount information.
+*   Allows for local, server-specific documentation (`description.txt`, `notes.txt`, `changelog.txt`) to be included on DokuWiki pages.
+*   Generates a DokuWiki page for each managed host.
+*   Generates an overview server list page in DokuWiki with key details.
+*   Optional checks for:
+    *   Zabbix agent status.
+    *   Wazuh agent status.
+    *   Rsyslog configuration (forwarding to Graylog, journald integration).
+    *   NTP client status and configured servers.
+    *   Realmd (domain join) status and details.
 
 ## Requirements
 
-- Ansible 2.9 or higher.
-- Target systems: Linux (tested on Debian, Ubuntu, EL/Rocky).
-- DokuWiki instance accessible via SSH (for file upload).
-- Python 3 on the Ansible control node.
+*   Ansible 2.10 or higher.
+*   A DokuWiki instance accessible from the Ansible controller.
+*   SSH access from the Ansible controller to the DokuWiki server (for `delegate_to`).
+*   The DokuWiki server must have write permissions for the `dokuwiki_user` to the `dokuwiki_data_root_path`.
+
+## Supported Platforms
+
+*   Debian (Bookworm, Trixie)
+*   Ubuntu (Jammy, Noble)
+*   EL (RHEL/Rocky 9)
+
+Other Linux distributions might work but are not actively tested.
 
 ## Role Variables
 
-All variables and their defaults are defined in [`defaults/main.yml`](defaults/main.yml). Key variables include:
+Available variables are listed below, along with default values (see `defaults/main.yml`):
 
-- **DokuWiki integration:**
-  - `dokuwiki_targetserver`: Hostname or IP of your DokuWiki server (**must be overridden**).
-  - `dokuwiki_directory`: Path to the DokuWiki pages directory on the DokuWiki server.
-  - `dokuwiki_user`, `dokuwiki_group`: File owner/group for DokuWiki pages.
-  - `dokuwiki_serverlist_destination`: Path for the generated server list page.
-  - `dokuwiki_local_destination`: Local path for server description files on each managed host.
+### DokuWiki Configuration
 
-- **Zabbix Agent:**
-  - `zabbix_agent_package_name`
-  - `zabbix_agent_service_name`
-  - `zabbix_agent_conf_file`
+These variables control how the role interacts with your DokuWiki instance.
 
-- **Wazuh Agent:**
-  - `wazuh_agent_package_name`
-  - `wazuh_agent_service_name`
-  - `wazuh_agent_conf_file`
+| Variable                          | Default                                  | Description                                                                                                |
+| --------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `dokuwiki_targetserver`           | `your_dokuwiki_server_hostname_or_ip`    | **Required.** Hostname or IP address of the DokuWiki server.                                               |
+| `dokuwiki_data_root_path`         | `/srv/dokuwiki/data/pages`               | Base path to DokuWiki's `pages` directory on the DokuWiki server.                                          |
+| `dokuwiki_server_pages_namespace` | `servers`                                | DokuWiki namespace where individual server pages will be created (e.g., `servers` or `cmdb:nodes`).        |
+| `dokuwiki_serverlist_page_fqn`    | `serverlist`                             | Fully qualified DokuWiki page name for the server list (e.g., `serverlist` or `cmdb:overview:serverlist`). |
+| `dokuwiki_user`                   | `www-data`                               | User that owns DokuWiki files on the DokuWiki server.                                                      |
+| `dokuwiki_group`                  | `www-data`                               | Group for DokuWiki files on the DokuWiki server.                                                           |
 
-- **Logging:**
-  - `graylog_rsyslog_conf_file`
-  - `journald_conf_file`
-  - `rsyslog_imjournal_conf_file`
+### Local Documentation Files
 
-See [`defaults/main.yml`](defaults/main.yml) for all variables.
+These variables define where local documentation files are stored on each managed host. The content of these files will be included in the DokuWiki page for that host.
 
-## Templates
+| Variable                             | Default                        | Description                                                                          |
+| ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------ |
+| `dokuwiki_local_destination`         | `/opt/ansible_server_docs`     | Path on managed hosts where `description.txt`, `notes.txt`, `changelog.txt` are stored. |
+| `dokuwiki_local_destination_user`  | `root`                         | Owner of the local documentation files.                                              |
+| `dokuwiki_local_destination_group` | `root`                         | Group of the local documentation files.                                              |
 
-- [`templates/server.txt.j2`](templates/server.txt.j2): Main server documentation page.
-- [`templates/description.txt.j2`](templates/description.txt.j2): Editable server description (owner, function, location, SLA).
-- [`templates/serverlist.txt.j2`](templates/serverlist.txt.j2): Overview of all managed servers.
+### Optional Checks
+
+Set these variables to `"yes"` or `"true"` to enable the corresponding checks.
+
+| Variable                  | Default | Description                                  |
+| ------------------------- | ------- | -------------------------------------------- |
+| `check_zabbix`            | `yes`   | Enable Zabbix agent checks.                  |
+| `check_wazuh`             | `no`    | Enable Wazuh agent checks.                   |
+| `check_rsyslog`           | `yes`   | Enable Rsyslog configuration checks.         |
+| `check_ntp`               | `yes`   | Enable NTP client checks.                    |
+| `check_realmd`            | `yes`   | Enable Realmd (domain join) checks.          |
+
+### Agent/Service Specific Variables
+
+These variables are used if the corresponding `check_*` variable is enabled.
+
+**Zabbix:**
+*   `zabbix_agent_package_name`: "zabbix-agent2"
+*   `zabbix_agent_service_name`: "zabbix-agent2.service"
+*   `zabbix_agent_conf_file`: "/etc/zabbix/zabbix_agent2.conf"
+
+**Wazuh:**
+*   `wazuh_agent_package_name`: "wazuh-agent"
+*   `wazuh_agent_service_name`: "wazuh-agent"
+*   `wazuh_agent_conf_file`: "/var/ossec/etc/ossec.conf"
+
+**Rsyslog:**
+*   `graylog_rsyslog_conf_file`: "/etc/rsyslog.d/99-graylog.conf"
+*   `journald_conf_file`: "/etc/systemd/journald.conf"
+*   `rsyslog_imjournal_conf_file`: "/etc/rsyslog.d/00-journalctl.conf"
+
+### Debugging
+
+| Variable                    | Default | Description                                                                 |
+| --------------------------- | ------- | --------------------------------------------------------------------------- |
+| `dokuwikicmdb_debug_checks` | `yes`   | Set to `true` to enable detailed debug output for the various checks.       |
+
+## Dependencies
+
+None.
 
 ## Example Playbook
 
 ```yaml
-- hosts: servers
+- hosts: all
   become: true
   vars:
-    dokuwiki_targetserver: "dokuwiki.example.com"
-    dokuwiki_directory: "/srv/dokuwiki/data/pages/servers"
-    dokuwiki_user: "www-data"
-    dokuwiki_group: "www-data"
-    dokuwiki_serverlist_destination: "/srv/dokuwiki/data/pages/serverlist.txt"
-    check_zabbix: yes
-    check_wazuh: yes
-    check_rsyslog: yes
-    zabbix_agent_package_name: "zabbix-agent2"
-    wazuh_agent_package_name: "wazuh-agent"
+    dokuwiki_targetserver: "your-dokuwiki.example.com"
+    dokuwiki_server_pages_namespace: "cmdb:servers"
+    dokuwiki_serverlist_page_fqn: "cmdb:server_overview"
+    check_wazuh: "yes"
+    check_rsyslog: "no"
+    dokuwikicmdb_debug_checks: false
   roles:
     - role: anylinq.dokuwikicmdb
 ```
 
-## Tasks Overview
+**Explanation of the example:**
 
-- Gathers package and service facts.
-- Checks Zabbix Agent, Wazuh Agent, and rsyslog/journald configuration.
-- Creates and reads local documentation files (`description.txt`, `notes.txt`, `changelog.txt`).
-- Renders and uploads server and server list pages to DokuWiki.
+1.  **`hosts: all`**: This playbook will run on all hosts defined in your inventory.
+2.  **`become: true`**: The role needs root privileges on managed hosts to gather certain facts and create local documentation directories.
+3.  **`vars`**:
+    *   `dokuwiki_targetserver`: **You must change this** to the hostname or IP of your DokuWiki server.
+    *   `dokuwiki_server_pages_namespace`: Server pages will be created under the `cmdb:servers` namespace in DokuWiki (e.g., `yourwiki/doku.php?id=cmdb:servers:yourhostname`).
+    *   `dokuwiki_serverlist_page_fqn`: The server list page will be `cmdb:server_overview` (e.g., `yourwiki/doku.php?id=cmdb:server_overview`).
+    *   `check_wazuh: "yes"`: Enables the Wazuh agent checks.
+    *   `check_rsyslog: "no"`: Disables the Rsyslog checks.
+    *   `dokuwikicmdb_debug_checks: false`: Disables the extra debug output from the role's checks.
+4.  **`roles`**:
+    *   `role: anylinq.dokuwikicmdb`: Includes this role.
 
-## Testing
+### Local Documentation Files
 
-This role is tested using Molecule with the following test matrix:
-  - Debian 12
-  - Ubuntu 24.04
+On each managed host, the role will look for the following files in the directory specified by `dokuwiki_local_destination` (default: `/opt/ansible_server_docs`):
 
-### Running Tests Locally
+*   `description.txt`: A general description of the server.
+*   `notes.txt`: Any specific notes or important information about the server.
+*   `changelog.txt`: A log of changes made to the server.
 
-First, install the Python dependencies:
-```bash
-python -m pip install --upgrade -r requirements.txt
-```
+If these files do not exist, the role will create empty ones (except for `description.txt` which gets a default template). You can then populate them with relevant information. The content of these files will be embedded into the DokuWiki page for that server.
 
-Then run the tests for specific distributions:
+## DokuWiki Output
 
-```bash
-# For Debian 12
-MOLECULE_DISTRO=debian12 molecule test
-
-# For Ubuntu 24.04
-MOLECULE_DISTRO=ubuntu2404 molecule test
-```
-
-The CI pipeline automatically tests all supported distributions.
+*   **Server Pages**: For each host, a page will be created (e.g., `servers:hostname.txt`). This page will contain:
+    *   Server Description (from `description.txt`)
+    *   Server Notes (from `notes.txt`)
+    *   Hardware/Virtualization details
+    *   Operating System details
+    *   Network details
+    *   Filesystem Mounts
+    *   Results of enabled checks (Zabbix, Wazuh, Rsyslog, NTP, Realmd)
+    *   Server Changelog (from `changelog.txt`)
+*   **Server List Page**: A page (e.g., `serverlist.txt`) will be created with a table listing all managed servers, their OS, kernel, and domain join status (if `check_realmd` is enabled).
 
 ## License
 
 MIT
 
-## Changelog
+## Author Information
 
-See [CHANGELOG.md](CHANGELOG.md) for a list of all notable changes to this project.
-
-## Security
-
-Please see our [Security Policy](SECURITY.md) for reporting vulnerabilities.
+This role was created in 2025 by Ronny Roethof for AnyLinQ B.V..
 
 ## Contributing
 
-Please read our [Contributing Guide](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
-
----
-
-<div align="center">
-Created and maintained by <a href="https://www.anylinq.com">anylinq B.V.</a><br/><br/>
-<a href="https://www.anylinq.com"><img src="https://anylinq.com/hubfs/AnyLinQ%20transparant.png" width="120" alt="anylinq Logo"/></a>
-</div>
-
----
-
-<sub>Author: Ronny Roethof (<a href="mailto:ronny@roethof.net">ronny@roethof.net</a>)</sub>
+Contributions, issues, and feature requests are welcome! Feel free to check issues page.

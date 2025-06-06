@@ -5,13 +5,13 @@
 {% for host in groups['all']|sort %}
 {%   set r_joined = hostvars[host]['realmd_is_joined'] | default(None) %}
 {%   set r_name = hostvars[host]['realmd_name'] | default('N/A') %}
-{%   set domain_status = 'N.v.t.' %}
+{%   set domain_status = 'Ja' %}
 {%   if r_joined is sameas true %}
 {%     set domain_status = r_name %}
 {%   elif r_joined is sameas false %}
 {%     set domain_status = 'Nee' %}
 {%   endif %}
-| [[interne_it:serverlijst:{{ hostvars[host]['inventory_hostname'] }} | {{ hostvars[host]['inventory_hostname'] }}]] | {{ hostvars[host]['ansible_distribution'] | default('') }} {{ hostvars[host]['ansible_distribution_version'] | default('') }} | {{ hostvars[host]['ansible_kernel'] | default('N/A') }} | {{ domain_status }} |
+| [[interne_it:{% if dokuwiki_link_ns_for_server_pages %}{{ dokuwiki_link_ns_for_server_pages }}:{% endif %}{{ hostvars[host]['inventory_hostname'] }} | {{ hostvars[host]['inventory_hostname'] }}]] | {{ hostvars[host]['ansible_distribution'] | default('') }} {{ hostvars[host]['ansible_distribution_version'] | default('') }} | {{ hostvars[host]['ansible_kernel'] | default('N/A') }} | {{ domain_status }} |
 {% endfor %}
 </datatables>
 

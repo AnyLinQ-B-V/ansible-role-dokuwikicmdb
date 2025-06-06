@@ -9,6 +9,11 @@
     realmd_type: "N/A"
     realmd_configured_method: "N/A"
     realmd_login_formats: "N/A"
+    realmd_server_software: "N/A"
+    realmd_client_software: "N/A"
+    realmd_simple_allow_groups: "N/A"
+    realmd_sudoers_d_groups: "N/A"
+    _extracted_realm_name: "Not Found"  # Initialize here
     realmd_status_message: "Checking..."
 
 - name: Realmd Check | Check if realmd package is installed
@@ -24,60 +29,172 @@
 - name: Realmd Check | Execute 'realm list' if realmd is installed
   ansible.builtin.command: realm list
   register: realm_list_result
-  changed_when: false
-  failed_when: false # We check rc and stderr manually
+  changed_when: false  # Command does not change state
+  failed_when: false  # We check rc and stderr manually
   when: realmd_installed
 
-- name: Realmd Check | Process 'realm list' output
+- name: Realmd Check | Process realm list output and set joined status
   ansible.builtin.set_fact:
     realmd_is_joined: >-
-      {{ realm_list_result.rc == 0 and
-         (realm_list_result.stdout_lines | default([]) | length > 0) and
-         not (
-           (realm_list_result.stdout_lines | default([]) | length > 0) and
-           (
-             (realm_list_result.stdout_lines[0] | lower is search("no realms configured")) or
-             (realm_list_result.stdout_lines[0] | lower is search("no domain joined"))
-           )
-         )
-      }}
+      {% if realm_list_result.rc != 0 %}
+      {{ false }}
+      {% elif realm_list_result.stdout_lines | default([]) | length == 0 %}
+      {{ false }}
+      {% else %}
+      {%   set first_line_lower_check = realm_list_result.stdout_lines[0] | trim | lower %}
+      {{ not (first_line_lower_check == "no realms configured" or first_line_lower_check == "no domain joined") }}
+      {% endif %}
     realmd_status_message: >-
       {% if realm_list_result.rc != 0 %}
-        Command 'realm list' failed: {{ realm_list_result.stderr | trim if realm_list_result.stderr else "rc " ~ realm_list_result.rc }}
-      {% elif not realmd_is_joined %}
-        Not joined to a domain or no realms configured.
+      Command 'realm list' failed (rc={{ realm_list_result.rc }}): {{ realm_list_result.stderr | trim | default('No stderr output') }}
+      {% elif realm_list_result.stdout_lines | default([]) | length == 0 %}
+      No output from 'realm list' (rc={{ realm_list_result.rc }}).
       {% else %}
-        Joined.
+      {%   set first_line_trimmed_msg = realm_list_result.stdout_lines[0] | trim %}
+      {%   set first_line_lower_msg = first_line_trimmed_msg | lower %}
+      {%   if first_line_lower_msg == "no realms configured" or first_line_lower_msg == "no domain joined" %}
+      {{ first_line_trimmed_msg }}
+      {%   else %}
+      Joined.
+      {%   endif %}
       {% endif %}
+    _debug_first_line_for_join_check: >-
+      {% if realm_list_result.stdout_lines | default([]) | length > 0 %}{{ realm_list_result.stdout_lines[0] | trim | lower }}{% else %}'NO_STDOUT_LINES'{% endif %}
+    _debug_rc_for_join_check: "{{ realm_list_result.rc }}"
   when: realmd_installed and realm_list_result is defined
+
+- name: Realmd Check | DEBUG raw realm_list_result for aq-noc-ans01
+  ansible.builtin.debug:
+    var: realm_list_result
+  when: inventory_hostname == "aq-noc-ans01"  # Alleen voor specifieke host voor gerichte debug
+
+- name: Realmd Check | DEBUG conditions for extraction task for aq-noc-ans01
+  ansible.builtin.debug:
+    msg: "realmd_installed={{ realmd_installed }}, realm_list_result_defined={{ realm_list_result is defined }}, realmd_is_joined={{ realmd_is_joined }}"
+  when: inventory_hostname == "aq-noc-ans01"  # Alleen voor specifieke host
 
 - name: Realmd Check | Extract domain details if joined
   ansible.builtin.set_fact:
-    realmd_name: >-
+    _extracted_realm_name: >-  # Tijdelijke variabele
       {{ (realm_list_result.stdout_lines | default([]))
-         | select('regex', '^\\s*realm-name:\\s*(.+)$')
-         | map('regex_replace', '^\\s*realm-name:\\s*(.+)$', '\\1')
+         | select('regex', '^\\s*realm-name\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*realm-name\\s*:\\s*(.+)$', '\\1')
          | first | default('Not Found')
       }}
+    _debug_selected_type_lines: >- # DEBUG: Lijnen geselecteerd voor 'type'
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*type\\s*:\\s*(.+)$') | list
+      }}
+    _debug_mapped_type_value: >- # DEBUG: Waarde geëxtraheerd voor 'type'
+      {{ ((realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*type\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*type\\s*:\\s*(.+)$', '\\1') | list | first) | default('Debug Not Found Type') }}
     realmd_type: >-
       {{ (realm_list_result.stdout_lines | default([]))
-         | select('regex', '^\\s*type:\\s*(.+)$')
-         | map('regex_replace', '^\\s*type:\\s*(.+)$', '\\1')
+         | select('regex', '^\\s*type\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*type\\s*:\\s*(.+)$', '\\1')
          | first | default('Not Found')
       }}
     realmd_configured_method: >-
       {{ (realm_list_result.stdout_lines | default([]))
-         | select('regex', '^\\s*configured:\\s*(.+)$')
-         | map('regex_replace', '^\\s*configured:\\s*(.+)$', '\\1')
+         | select('regex', '^\\s*configured\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*configured\\s*:\\s*(.+)$', '\\1')
          | first | default('Not Found')
       }}
     realmd_login_formats: >-
       {{ (realm_list_result.stdout_lines | default([]))
-         | select('regex', '^\\s*login-formats:\\s*(.+)$')
-         | map('regex_replace', '^\\s*login-formats:\\s*(.+)$', '\\1')
+         | select('regex', '^\\s*login-formats\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*login-formats\\s*:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+    realmd_server_software: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*server-software\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*server-software\\s*:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+    realmd_client_software: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*client-software\\s*:\\s*(.+)$')
+         | map('regex_replace', '^\\s*client-software\\s*:\\s*(.+)$', '\\1')
          | first | default('Not Found')
       }}
   when: realmd_installed and realm_list_result is defined and (realmd_is_joined | bool)
+
+- name: Realmd Check | Read sssd.conf if client is sssd and server is joined
+  ansible.builtin.slurp:
+    src: /etc/sssd/sssd.conf
+  register: sssd_conf_content
+  when: realmd_client_software | lower == 'sssd' and (realmd_is_joined | bool)
+  ignore_errors: true
+
+- name: Realmd Check | Extract simple_allow_groups from sssd.conf
+  ansible.builtin.set_fact:
+    realmd_simple_allow_groups: >-
+      {% set found_groups = [] %}
+      {% if sssd_conf_content is succeeded and sssd_conf_content.content is defined %}
+      {%   for line in (sssd_conf_content.content | b64decode).splitlines() %}
+      {%     if line | trim | lower is search('^simple_allow_groups') and not line | trim | lower is search('^#') %}
+      {%       set groups_line = line.split('=')[1] | trim %}
+      {%       set _ = found_groups.extend(groups_line.split(',')) %}
+      {%     endif %}
+      {%   endfor %}
+      {% endif %}
+      {{ found_groups | map('trim') | unique | join(', ') if found_groups else 'Not configured or found' }}
+  when: realmd_client_software | lower == 'sssd' and (realmd_is_joined | bool)
+
+- name: Realmd Check | Find files in /etc/sudoers.d
+  ansible.builtin.find:
+    paths: /etc/sudoers.d
+    file_type: file
+    # Exclude files with common backup extensions or READMEs, adjust as needed
+    excludes: ['README', '*.bak', '*.old', '*.swp', '~*$'] # Keep excludes
+  register: sudoers_d_files_find_result # Renamed for clarity
+  ignore_errors: true
+
+- name: Realmd Check | Slurp content of /etc/sudoers.d files
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ sudoers_d_files_find_result.files | default([]) }}" # Loop over found files
+  register: slurped_sudoers_d_files_content # Register results of slurp
+  when: sudoers_d_files_find_result.files is defined and sudoers_d_files_find_result.files | length > 0
+  ignore_errors: true # Individual slurps might fail (permissions, etc.)
+
+- name: Realmd Check | Extract groups from slurped /etc/sudoers.d files
+  ansible.builtin.set_fact:
+    realmd_sudoers_d_groups: >-
+      {% set collected_sudo_groups = [] %}
+      {% if slurped_sudoers_d_files_content.results is defined %}
+      {%   for slurp_item in slurped_sudoers_d_files_content.results %}
+      {%     if slurp_item.content is defined and not slurp_item.failed %} {# Check if slurp succeeded and content exists #}
+      {%       for line in (slurp_item.content | b64decode).splitlines() %}
+      {%         set trimmed_line = line | trim %}
+      {%         if trimmed_line.startswith('%') and not trimmed_line.startswith('#') %}
+      {%           set group_name_match = trimmed_line.split() | first | regex_replace('^%', '') %}
+      {%           if group_name_match %} {# Ensure regex_replace didn't result in empty string #}
+      {%             set _ = collected_sudo_groups.append(group_name_match) %}
+      {%           endif %}
+      {%         endif %}
+      {%       endfor %}
+      {%     endif %}
+      {%   endfor %}
+      {% endif %}
+      {{ collected_sudo_groups | unique | sort | join(', ') if collected_sudo_groups else 'None found or /etc/sudoers.d empty/inaccessible' }}
+  when: true # Always run this to set the fact, even if the list is empty
+
+
+- name: Realmd Check | Finalize realmd_name
+  ansible.builtin.set_fact:
+    realmd_name: >-
+      {% if _extracted_realm_name != 'Not Found' %}
+      {{ _extracted_realm_name }}
+      {% elif (realmd_is_joined | bool) and (realm_list_result.stdout_lines | default([]) | length > 0) %}
+      {{ realm_list_result.stdout_lines[0] | trim }}
+      {% else %}
+      {{ _extracted_realm_name | default('Not Found') }}
+      {% endif %}
+  when: realmd_installed and realm_list_result is defined
+
 
 - name: Realmd Check | Display Realmd check results (debug)
   ansible.builtin.debug:
@@ -86,7 +203,13 @@
       - "Realmd Joined: {{ realmd_is_joined }}"
       - "Realmd Status Message: {{ realmd_status_message }}"
       - "Realmd Name: {{ realmd_name if realmd_is_joined else 'N/A' }}"
+      - "DEBUG Selected Type Lines: {{ _debug_selected_type_lines | default('Niet gezet') }}" # DEBUG
+      - "DEBUG Mapped Type Value: {{ _debug_mapped_type_value | default('Niet gezet') }}" # DEBUG
       - "Realmd Type: {{ realmd_type if realmd_is_joined else 'N/A' }}"
       - "Realmd Configured Method: {{ realmd_configured_method if realmd_is_joined else 'N/A' }}"
       - "Realmd Login Formats: {{ realmd_login_formats if realmd_is_joined else 'N/A' }}"
-  when: false # Set to true for active debugging during development
+      - "Realmd Server Software: {{ realmd_server_software if realmd_is_joined else 'N/A' }}"
+      - "Realmd Client Software: {{ realmd_client_software if realmd_is_joined else 'N/A' }}"
+      - "RAW Realmd Simple Allow Groups: {{ realmd_simple_allow_groups }}"
+      - "Realmd Sudoers.d Groups: {{ realmd_sudoers_d_groups }}"
+  when: dokuwikicmdb_debug_checks | default(false) | bool
