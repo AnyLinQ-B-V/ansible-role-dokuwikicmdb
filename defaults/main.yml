@@ -33,3 +33,6 @@ dokuwiki_directory: "/srv/dokuwiki/data/pages/servers"  # Path to server pages o
 dokuwiki_user: "www-data"  # User that owns DokuWiki files (e.g., apache, nginx, www-data)
 dokuwiki_group: "www-data"  # Group for DokuWiki files
 dokuwiki_serverlist_destination: "/srv/dokuwiki/data/pages/serverlist.txt"  # Path for the server list page
+
+# Realmd check specific variable
+check_realmd: "yes"  # Set to "yes" or "true" to enable realmd checks

@@ -27,5 +27,9 @@
   ansible.builtin.include_tasks: ntp.yml
   when: (check_ntp | default('no') | lower) in ["true", "yes"]
 
+- name: Include Realmd tasks
+  ansible.builtin.include_tasks: realmd.yml
+  when: (check_realmd | default('no') | lower) in ["true", "yes"]
+
 - name: Include Dokuwiki tasks
   ansible.builtin.include_tasks: dokuwiki.yml

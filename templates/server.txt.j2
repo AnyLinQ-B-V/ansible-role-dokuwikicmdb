@@ -86,6 +86,25 @@
 | NTP Servers | {{ ntp_servers | default('N/A') }} |
 </col>
 
+{% if check_realmd | lower in ['true', 'yes'] %}
+<col sm="4">
+=== Domein Koppeling (realmd) ===
+| Realmd Geïnstalleerd | {% if realmd_installed | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
+{% if realmd_installed | default(false) %}
+| Gekoppeld aan Domein | {% if realmd_is_joined | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
+{%   if realmd_is_joined | default(false) %}
+| Domein Naam | {{ realmd_name | default('N/A') }} |
+| Domein Type | {{ realmd_type | default('N/A') }} |
+| Configuratie Methode | {{ realmd_configured_method | default('N/A') }} |
+| Login Formats | {{ realmd_login_formats | default('N/A') }} |
+{%   else %}
+| Status | <color red>{{ realmd_status_message | default('Niet gekoppeld of fout bij controle.') }}</color> |
+{%   endif %}
+{% elif realmd_status_message is defined and realmd_status_message != "Checking..." %}
+| Status | <color red>{{ realmd_status_message }}</color> |
+{% endif %}
+</col>
+{% endif %}
 </grid>
 
 

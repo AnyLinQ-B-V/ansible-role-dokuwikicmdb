@@ -1,0 +1,92 @@
+---
+# tasks file for Realmd (domain join) checks
+
+- name: Realmd Check | Initialize Realmd facts
+  ansible.builtin.set_fact:
+    realmd_installed: false
+    realmd_is_joined: false
+    realmd_name: "N/A"
+    realmd_type: "N/A"
+    realmd_configured_method: "N/A"
+    realmd_login_formats: "N/A"
+    realmd_status_message: "Checking..."
+
+- name: Realmd Check | Check if realmd package is installed
+  ansible.builtin.set_fact:
+    realmd_installed: true
+  when: "'realmd' in (ansible_facts.packages | default({}))"
+
+- name: Realmd Check | Update status if realmd not installed
+  ansible.builtin.set_fact:
+    realmd_status_message: "Realmd package not installed."
+  when: not realmd_installed
+
+- name: Realmd Check | Execute 'realm list' if realmd is installed
+  ansible.builtin.command: realm list
+  register: realm_list_result
+  changed_when: false
+  failed_when: false # We check rc and stderr manually
+  when: realmd_installed
+
+- name: Realmd Check | Process 'realm list' output
+  ansible.builtin.set_fact:
+    realmd_is_joined: >-
+      {{ realm_list_result.rc == 0 and
+         (realm_list_result.stdout_lines | default([]) | length > 0) and
+         not (
+           (realm_list_result.stdout_lines | default([]) | length > 0) and
+           (
+             (realm_list_result.stdout_lines[0] | lower is search("no realms configured")) or
+             (realm_list_result.stdout_lines[0] | lower is search("no domain joined"))
+           )
+         )
+      }}
+    realmd_status_message: >-
+      {% if realm_list_result.rc != 0 %}
+        Command 'realm list' failed: {{ realm_list_result.stderr | trim if realm_list_result.stderr else "rc " ~ realm_list_result.rc }}
+      {% elif not realmd_is_joined %}
+        Not joined to a domain or no realms configured.
+      {% else %}
+        Joined.
+      {% endif %}
+  when: realmd_installed and realm_list_result is defined
+
+- name: Realmd Check | Extract domain details if joined
+  ansible.builtin.set_fact:
+    realmd_name: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*realm-name:\\s*(.+)$')
+         | map('regex_replace', '^\\s*realm-name:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+    realmd_type: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*type:\\s*(.+)$')
+         | map('regex_replace', '^\\s*type:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+    realmd_configured_method: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*configured:\\s*(.+)$')
+         | map('regex_replace', '^\\s*configured:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+    realmd_login_formats: >-
+      {{ (realm_list_result.stdout_lines | default([]))
+         | select('regex', '^\\s*login-formats:\\s*(.+)$')
+         | map('regex_replace', '^\\s*login-formats:\\s*(.+)$', '\\1')
+         | first | default('Not Found')
+      }}
+  when: realmd_installed and realm_list_result is defined and (realmd_is_joined | bool)
+
+- name: Realmd Check | Display Realmd check results (debug)
+  ansible.builtin.debug:
+    msg:
+      - "Realmd Installed: {{ realmd_installed }}"
+      - "Realmd Joined: {{ realmd_is_joined }}"
+      - "Realmd Status Message: {{ realmd_status_message }}"
+      - "Realmd Name: {{ realmd_name if realmd_is_joined else 'N/A' }}"
+      - "Realmd Type: {{ realmd_type if realmd_is_joined else 'N/A' }}"
+      - "Realmd Configured Method: {{ realmd_configured_method if realmd_is_joined else 'N/A' }}"
+      - "Realmd Login Formats: {{ realmd_login_formats if realmd_is_joined else 'N/A' }}"
+  when: false # Set to true for active debugging during development
