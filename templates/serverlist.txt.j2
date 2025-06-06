@@ -11,7 +11,7 @@
 {%   elif r_joined is sameas false %}
 {%     set domain_status = 'Nee' %}
 {%   endif %}
-| [[servers:{{ hostvars[host]['inventory_hostname'] }} | {{ hostvars[host]['inventory_hostname'] }}]] | {{ hostvars[host]['ansible_distribution'] | default('') }} {{ hostvars[host]['ansible_distribution_version'] | default('') }} | {{ hostvars[host]['ansible_kernel'] | default('N/A') }} | {{ domain_status }} |
+| [[interne_it:serverlijst:{{ hostvars[host]['inventory_hostname'] }} | {{ hostvars[host]['inventory_hostname'] }}]] | {{ hostvars[host]['ansible_distribution'] | default('') }} {{ hostvars[host]['ansible_distribution_version'] | default('') }} | {{ hostvars[host]['ansible_kernel'] | default('N/A') }} | {{ domain_status }} |
 {% endfor %}
 </datatables>
 
