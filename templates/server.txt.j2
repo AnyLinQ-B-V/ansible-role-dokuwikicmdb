@@ -92,8 +92,8 @@
 | Realmd Geïnstalleerd | {% if realmd_installed | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
 {% if realmd_installed | default(false) %}
 | Gekoppeld aan Domein | {% if realmd_is_joined | default(false) %}Ja{% else %}<color red>Nee</color>{% endif %} |
-| Toegestane Groepen (/etc/sssd/sssd.conf) | {{ realmd_simple_allow_groups | default('<color gray>N/A</color>') }} |
-| Sudo Groepen (/etc/sudoers.d) | {{ realmd_sudoers_d_groups | default('<color gray>N/A</color>') }} |
+| Toegestane Groepen (/etc/sssd/sssd.conf) | <code>{{ realmd_simple_allow_groups | default('N/A')</code> }} |
+| Sudo Groepen (/etc/sudoers.d) | <code>{{ realmd_sudoers_d_groups | default('N/A')</code> }} |
 {% else %} {# realmd_installed is false #}
 | Status | <color red>{{ realmd_status_message | default('Realmd niet geïnstalleerd of check mislukt.') }}</color> |
 {% endif %}
