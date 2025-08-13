@@ -172,7 +172,7 @@
       {%         if trimmed_line.startswith('%') and not trimmed_line.startswith('#') %}
       {%           set group_name_match = trimmed_line.split() | first | regex_replace('^%', '') %}
       {%           if group_name_match %} {# Ensure regex_replace didn't result in empty string #}
-      {%             set _ = collected_sudo_groups.append(group_name_match) %}
+      {%             set collected_sudo_groups = collected_sudo_groups + [group_name_match] %} {# HIER IS DE FIX! #}
       {%           endif %}
       {%         endif %}
       {%       endfor %}
@@ -180,8 +180,7 @@
       {%   endfor %}
       {% endif %}
       {{ collected_sudo_groups | unique | sort | join(', ') if collected_sudo_groups else 'None found or /etc/sudoers.d empty/inaccessible' }}
-  when: true # Always run this to set the fact, even if the list is empty
-
+  when: true
 
 - name: Realmd Check | Finalize realmd_name
   ansible.builtin.set_fact:
